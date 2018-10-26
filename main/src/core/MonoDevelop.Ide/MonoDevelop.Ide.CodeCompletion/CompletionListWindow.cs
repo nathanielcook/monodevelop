@@ -62,7 +62,11 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public CompletionListWindow ()
 		{
+#if !MAC
 			window = new CompletionListWindowGtk ();
+#else
+			window = new CompletionListWindowCocoa ();
+#endif
 			controller = new CompletionController (this, window);
 		}
 
@@ -74,10 +78,14 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		internal static CompletionListWindow CreateAsDialog ()
 		{
+#if !MAC
 			var gtkWindow = new CompletionListWindowGtk (Gtk.WindowType.Toplevel);
 			gtkWindow.TypeHint = Gdk.WindowTypeHint.Dialog;
 			gtkWindow.Decorated = false;
 			return new CompletionListWindow (gtkWindow);
+#else
+			return new CompletionListWindow ();
+#endif
 		}
 
 		public Xwt.Rectangle Allocation {
