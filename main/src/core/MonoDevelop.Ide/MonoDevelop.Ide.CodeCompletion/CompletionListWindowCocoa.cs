@@ -56,7 +56,7 @@ namespace MonoDevelop.Ide.CodeCompletion
 		public bool InCategoryMode { get => true; set { return; } }
 		public bool SelectionEnabled { get => true; set { return; } }
 
-		public bool Visible => false;
+		public bool Visible => IsVisible;
 
 		public Rectangle Allocation => new Rectangle (Frame.X, Frame.Y, Frame.Width, Frame.Height);
 
@@ -103,6 +103,7 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void Reposition (int triggerX, int triggerY, int triggerHeight, bool force)
 		{
+			SetFrameTopLeftPoint (new CGPoint (triggerX, triggerY));
 		}
 
 		public bool RepositionDeclarationViewWindow (TooltipInformationWindow declarationviewwindow, int selectedItem)
@@ -148,21 +149,36 @@ namespace MonoDevelop.Ide.CodeCompletion
 		{
 			NSTableView listView;
 
+			class DrawView : NSView
+			{
+				public override void DrawRect (CGRect dirtyRect)
+				{
+					NSColor.Blue.Set ();
+					NSBezierPath.FillRect (dirtyRect);
+					base.DrawRect (dirtyRect);
+				}
+			}
+
 			public override void LoadView ()
 			{
-				View = new NSView (new CGRect (0, 0, 400, 500));
+				View = new DrawView ();
+				View.Frame = new CGRect (0, 0, 400, 500);
 
-				listView = new NSTableView ();
-				listView.TranslatesAutoresizingMaskIntoConstraints = false;
+				var scroller = new NSScrollView (View.Frame);
+				View.AddSubview (scroller);
 
-				View.AddSubview (listView);
+				listView = new CompletionListCocoa ();
+				listView.Frame = View.Frame;
 
-				listView.TopAnchor.ConstraintEqualToAnchor (View.TopAnchor);
-				listView.BottomAnchor.ConstraintEqualToAnchor (View.BottomAnchor);
-				listView.LeadingAnchor.ConstraintEqualToAnchor (View.LeadingAnchor);
-				listView.TrailingAnchor.ConstraintEqualToAnchor (View.TrailingAnchor);
-				listView.WidthAnchor.ConstraintEqualToConstant (400);
-				listView.HeightAnchor.ConstraintEqualToConstant (500);
+				scroller.DocumentView = listView;
+				scroller.HasVerticalScroller = true;
+
+				//listView.TopAnchor.ConstraintEqualToAnchor (View.TopAnchor);
+				//listView.BottomAnchor.ConstraintEqualToAnchor (View.BottomAnchor);
+				//listView.LeadingAnchor.ConstraintEqualToAnchor (View.LeadingAnchor);
+				//listView.TrailingAnchor.ConstraintEqualToAnchor (View.TrailingAnchor);
+				//listView.WidthAnchor.ConstraintEqualToConstant (400);
+				//listView.HeightAnchor.ConstraintEqualToConstant (500); 
 			}
 		}
 	}
