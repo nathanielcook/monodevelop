@@ -65,6 +65,7 @@ namespace MonoDevelop.Ide.CodeCompletion
 #if !MAC
 			window = new CompletionListWindowGtk ();
 #else
+			Console.WriteLine ("Creating new completion window");
 			window = new CompletionListWindowCocoa ();
 #endif
 			controller = new CompletionController (this, window);
@@ -213,6 +214,7 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void Show ()
 		{
+			Console.WriteLine ("Showing constroller");
 			controller.ShowWindow ();
 		}
 

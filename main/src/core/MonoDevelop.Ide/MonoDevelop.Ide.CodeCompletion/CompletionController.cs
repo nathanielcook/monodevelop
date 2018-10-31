@@ -234,6 +234,7 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void ShowWindow ()
 		{
+			Console.WriteLine ("Controller show window");
 			view.Show ();
 			NotifyVisibilityChange ();
 		}

@@ -34,35 +34,62 @@ using CoreGraphics;
 
 namespace MonoDevelop.Ide.CodeCompletion
 {
-	internal class CompletionListWindowCocoa : NSWindow, ICompletionView
+	internal class CompletionListWindowCocoa : NSViewController, ICompletionView
 	{
-		CompletionListViewController viewController;
+		NSWindow parentWindow;
+
 		ICompletionViewEventSink eventSink;
 
 		public CompletionListWindowCocoa ()
 		{
-			viewController = new CompletionListViewController ();
-			ContentViewController = viewController;
+			parentWindow = NSWindow.GetWindowWithContentViewController (this);
 
-			StyleMask = NSWindowStyle.Borderless | NSWindowStyle.FullSizeContentView;
-			TitleVisibility = NSWindowTitleVisibility.Hidden;
-			TitlebarAppearsTransparent = true;
+			parentWindow.StyleMask = NSWindowStyle.Borderless | NSWindowStyle.FullSizeContentView;
+			parentWindow.TitleVisibility = NSWindowTitleVisibility.Hidden;
+			parentWindow.TitlebarAppearsTransparent = true;
+		}
+
+		CompletionListCocoa listView;
+
+		public override void LoadView ()
+		{
+			View = new NSView ();
+			View.Frame = new CGRect (0, 0, 400, 500);
+
+			var scroller = new NSScrollView (View.Frame);
+			View.AddSubview (scroller);
+
+			listView = new CompletionListCocoa ();
+			listView.Frame = View.Frame;
+
+			scroller.DocumentView = listView;
+			scroller.HasVerticalScroller = true;
+		}
+
+		public void ShowFilteredItems (CompletionListFilterResult filterResult)
+		{
+			listView.ShowFilteredItems (filterResult);
+		}
+
+		public void ResetState ()
+		{
+			listView.ResetState ();
 		}
 
 		public int SelectedItemIndex {
-			get => -1;
-			set { return; }
+			get => listView.SelectedIndex;
+			set { Console.WriteLine ($"Setting index: {value}"); listView.SelectedIndex = value; }
 		}
 		public bool InCategoryMode { get => true; set { return; } }
 		public bool SelectionEnabled { get => true; set { return; } }
 
-		public bool Visible => IsVisible;
+		public bool Visible => parentWindow.IsVisible;
 
-		public Rectangle Allocation => new Rectangle (Frame.X, Frame.Y, Frame.Width, Frame.Height);
+		public Rectangle Allocation => new Rectangle (parentWindow.Frame.X, parentWindow.Frame.Y, parentWindow.Frame.Width, parentWindow.Frame.Height);
 
-		public int X => (int)Frame.X;
+		public int X => (int)parentWindow.Frame.X;
 
-		public int Y => (int)Frame.Y;
+		public int Y => (int)parentWindow.Frame.Y;
 
 		public Gtk.Window TransientFor {
 			get => null;
@@ -73,11 +100,12 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void Destroy ()
 		{
+			parentWindow.Close ();
 		}
 
 		public void Hide ()
 		{
-			OrderOut (this);
+			parentWindow.OrderOut (this);
 		}
 
 		public void HideLoadingMessage ()
@@ -87,10 +115,18 @@ namespace MonoDevelop.Ide.CodeCompletion
 		public void Initialize (IListDataProvider provider, ICompletionViewEventSink eventSink)
 		{
 			this.eventSink = eventSink;
+			listView.DataProvider = provider;
 		}
 
 		public void MoveCursor (int relative)
 		{
+			Console.WriteLine ($"Moving from {listView.SelectedRow} + {relative} = {listView.SelectedRow + relative}");
+			if (relative + listView.SelectedRow < 0) {
+				return;
+			}
+
+			var newRow = listView.SelectedRow + relative;
+			listView.SelectRow (newRow, false);
 		}
 
 		public void PageDown ()
@@ -103,7 +139,14 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void Reposition (int triggerX, int triggerY, int triggerHeight, bool force)
 		{
-			SetFrameTopLeftPoint (new CGPoint (triggerX, triggerY));
+			var scr = parentWindow.Screen;
+			// Convert to Cocoa Y
+			var halfCocoaHeight = scr.Frame.Height / 2.0;
+			var dy = halfCocoaHeight - (triggerY + triggerHeight);
+
+			// FIXME: Proper screen calculation
+			triggerX -= (int)scr.Frame.Width;
+			parentWindow.SetFrameTopLeftPoint (new CGPoint (scr.Frame.X + triggerX, scr.Frame.Y + (halfCocoaHeight + dy)));
 		}
 
 		public bool RepositionDeclarationViewWindow (TooltipInformationWindow declarationviewwindow, int selectedItem)
@@ -117,24 +160,16 @@ namespace MonoDevelop.Ide.CodeCompletion
 				return;
 			}
 
-			SetFrameTopLeftPoint (new CGPoint (r.Value.X, r.Value.Y));
+			parentWindow.SetFrameTopLeftPoint (new CGPoint (r.Value.X, r.Value.Y));
 		}
 
 		public void ResetSizes ()
 		{
 		}
 
-		public void ResetState ()
-		{
-		}
-
 		public void Show ()
 		{
-			OrderFront (this);
-		}
-
-		public void ShowFilteredItems (CompletionListFilterResult filterResult)
-		{
+			parentWindow.OrderFront (this);
 		}
 
 		public void ShowLoadingMessage ()
@@ -143,43 +178,6 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void ShowPreviewCompletionEntry ()
 		{
-		}
-
-		class CompletionListViewController : NSViewController
-		{
-			NSTableView listView;
-
-			class DrawView : NSView
-			{
-				public override void DrawRect (CGRect dirtyRect)
-				{
-					NSColor.Blue.Set ();
-					NSBezierPath.FillRect (dirtyRect);
-					base.DrawRect (dirtyRect);
-				}
-			}
-
-			public override void LoadView ()
-			{
-				View = new DrawView ();
-				View.Frame = new CGRect (0, 0, 400, 500);
-
-				var scroller = new NSScrollView (View.Frame);
-				View.AddSubview (scroller);
-
-				listView = new CompletionListCocoa ();
-				listView.Frame = View.Frame;
-
-				scroller.DocumentView = listView;
-				scroller.HasVerticalScroller = true;
-
-				//listView.TopAnchor.ConstraintEqualToAnchor (View.TopAnchor);
-				//listView.BottomAnchor.ConstraintEqualToAnchor (View.BottomAnchor);
-				//listView.LeadingAnchor.ConstraintEqualToAnchor (View.LeadingAnchor);
-				//listView.TrailingAnchor.ConstraintEqualToAnchor (View.TrailingAnchor);
-				//listView.WidthAnchor.ConstraintEqualToConstant (400);
-				//listView.HeightAnchor.ConstraintEqualToConstant (500); 
-			}
 		}
 	}
 }
