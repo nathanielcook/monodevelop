@@ -34,6 +34,8 @@ using Microsoft.Build.Exceptions;
 using MonoDevelop.Components;
 using MonoDevelop.Ide.Gui;
 using MonoDevelop.Components.Mac;
+using System.Text;
+using MonoDevelop.Core;
 
 namespace MonoDevelop.Ide.CodeCompletion
 {
@@ -77,6 +79,9 @@ namespace MonoDevelop.Ide.CodeCompletion
 				categories = filterResult.CategorizedItems;
 			}
 
+			foreach (var i in filteredItems) {
+				Console.WriteLine ($"filter {i} - {DataProvider.GetText (i)}");
+			}
 			(Delegate as CompletionListDelegate).FilteredItems = filteredItems;
 			(DataSource as CompletionListDataSource).FilteredItems = filteredItems;
 			ReloadData ();
@@ -123,6 +128,12 @@ namespace MonoDevelop.Ide.CodeCompletion
 				ScrollRowToVisible (row);
 			}
 		}
+
+		internal event EventHandler<EventArgs> SelectionChanged;
+		internal void OnSelectionDidChange ()
+		{
+			SelectionChanged?.Invoke (this, EventArgs.Empty);
+		}
 	}
 
 	class CompletionCellView : NSTableCellView
@@ -153,6 +164,35 @@ namespace MonoDevelop.Ide.CodeCompletion
 	{
 		internal List<int> FilteredItems { get; set; }
 		internal IListDataProvider Provider { get; set; }
+
+		static string StripMarkup (string markup)
+		{
+			var sb = new StringBuilder ();
+			int idx = 0;
+			int start = 0;
+			bool insideTag = false;
+
+			while (idx < markup.Length) {
+				if (markup[idx] == '<') {
+					if (idx != 0) {
+						sb.Append (markup, start, idx - start);
+					}
+					insideTag = true;
+				} else if (markup[idx] == '>') {
+					insideTag = false;
+					start = idx + 1;
+				}
+
+				idx++;
+			}
+
+			if (start != idx) {
+				sb.Append (markup, start, idx - start);
+			}
+
+			return sb.ToString ();
+		}
+
 		public override NSView GetViewForItem (NSTableView tableView, NSTableColumn tableColumn, nint row)
 		{
 			if (Provider == null || FilteredItems == null) {
@@ -162,17 +202,47 @@ namespace MonoDevelop.Ide.CodeCompletion
 			var filteredRow = FilteredItems [(int)row];
 			var r = new CompletionCellView ();
 
-			string markup = Provider.HasMarkup (filteredRow) ? (Provider.GetMarkup (filteredRow) ?? "&lt;null&gt;") : GLib.Markup.EscapeText (Provider.GetText (filteredRow) ?? "<null>");
-			string description = Provider.GetDescription (filteredRow, tableView.SelectedRow == row);
-
-			if (!string.IsNullOrEmpty (description)) {
-				markup = markup + " " + description;
+			var text = Provider.GetText (filteredRow) ?? "null";
+			var description = Provider.GetDescription (filteredRow, true);
+			if (description != null) {
+				description = StripMarkup (description);
 			}
 
-			r.TextField.AttributedStringValue = AttibutedStringUtils.NSAttributedStringFromMarkup (markup);
-			Console.WriteLine ($"Markup: {markup} - {r.TextField.AttributedStringValue}");
-			r.ImageView.Image = Provider.GetIcon (filteredRow).ToNSImage ();
+			var attrString = new NSMutableAttributedString ($"{text} {description}");
+			attrString.AddAttribute (NSStringAttributeKey.ForegroundColor, Styles.CodeCompletion.TextColor.ToNSColor (), new NSRange (0, text.Length));
+			if (description != null) {
+				attrString.AddAttribute (NSStringAttributeKey.ForegroundColor, Styles.CodeCompletion.CategoryColor.ToNSColor (), new NSRange (text.Length + 1, description.Length));
+			}
+
+			if (!string.IsNullOrEmpty (text)) {
+				int[] matchIndices = Provider.GetHighlightedTextIndices (filteredRow);
+				if (matchIndices != null) {
+					//Pango.AttrList attrList = layout.Attributes ?? new Pango.AttrList ();
+					for (int newSelection = 0; newSelection < matchIndices.Length; newSelection++) {
+						int idx = matchIndices[newSelection];
+
+						var highlightColor = Styles.CodeCompletion.HighlightColor.ToNSColor ();
+
+						var attrDict = new NSDictionary (NSStringAttributeKey.Font, NSFont.BoldSystemFontOfSize (12),
+														 NSStringAttributeKey.ForegroundColor, highlightColor);
+						attrString.AddAttributes (attrDict, new NSRange (idx, 1));
+					}
+				}
+			}
+
+			r.TextField.AttributedStringValue = attrString;
+			var icon = Provider.GetIcon (filteredRow);
+			r.ImageView.Image = icon?.ToNSImage ();
+
 			return r;
+		}
+
+		public override void SelectionDidChange (NSNotification notification)
+		{
+			var tableView = notification.Object as CompletionListCocoa;
+			if (tableView != null) {
+				tableView.OnSelectionDidChange ();
+			}
 		}
 	}
 

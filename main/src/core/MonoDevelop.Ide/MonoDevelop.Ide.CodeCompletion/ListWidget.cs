@@ -468,7 +468,7 @@ namespace MonoDevelop.Ide.CodeCompletion
 				}
 
 				string text = DataProvider.GetText (item);
-
+					Console.WriteLine ($"text: {text}.");
 				if (!string.IsNullOrEmpty (text)) {
 					int [] matchIndices = DataProvider.GetHighlightedTextIndices(item);
 					if (matchIndices != null) {

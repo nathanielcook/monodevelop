@@ -31,6 +31,8 @@ using AppKit;
 using Gtk;
 using Xwt;
 using CoreGraphics;
+using MonoDevelop.Components;
+using Foundation;
 
 namespace MonoDevelop.Ide.CodeCompletion
 {
@@ -54,20 +56,32 @@ namespace MonoDevelop.Ide.CodeCompletion
 		public override void LoadView ()
 		{
 			View = new NSView ();
-			View.Frame = new CGRect (0, 0, 400, 500);
 
-			var scroller = new NSScrollView (View.Frame);
+			View.Frame = new CGRect (0, 0, 400, 400);
+			View.TranslatesAutoresizingMaskIntoConstraints = false;
+			View.WidthAnchor.ConstraintEqualToConstant (400).Active = true;
+			View.HeightAnchor.ConstraintEqualToConstant (400).Active = true;
+
+			var scroller = new NSScrollView (new CGRect (0, 0, 400, 400));
+			scroller.HasVerticalScroller = true;
+
 			View.AddSubview (scroller);
 
+			scroller.ContentView.PostsBoundsChangedNotifications = true;
+			NSNotificationCenter.DefaultCenter.AddObserver ((NSString)"NSViewBoundsDidChangeNotification", (n) => {
+				eventSink.OnListScrolled ();
+			}, scroller.ContentView);
+
 			listView = new CompletionListCocoa ();
-			listView.Frame = View.Frame;
+			listView.Frame = new CGRect (0, 0, 400, 400);
+			listView.SelectionChanged += OnSelectionChanged;
 
 			scroller.DocumentView = listView;
-			scroller.HasVerticalScroller = true;
 		}
 
 		public void ShowFilteredItems (CompletionListFilterResult filterResult)
 		{
+			View.Frame = new CGRect (0, 0, 400, 400);
 			listView.ShowFilteredItems (filterResult);
 		}
 
@@ -120,21 +134,23 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void MoveCursor (int relative)
 		{
-			Console.WriteLine ($"Moving from {listView.SelectedRow} + {relative} = {listView.SelectedRow + relative}");
 			if (relative + listView.SelectedRow < 0) {
 				return;
 			}
 
 			var newRow = listView.SelectedRow + relative;
 			listView.SelectRow (newRow, false);
+			listView.ScrollRowToVisible (newRow);
 		}
 
 		public void PageDown ()
 		{
+			MoveCursor (-8);
 		}
 
 		public void PageUp ()
 		{
+			MoveCursor (8);
 		}
 
 		public void Reposition (int triggerX, int triggerY, int triggerHeight, bool force)
@@ -145,12 +161,22 @@ namespace MonoDevelop.Ide.CodeCompletion
 			var dy = halfCocoaHeight - (triggerY + triggerHeight);
 
 			// FIXME: Proper screen calculation
-			triggerX -= (int)scr.Frame.Width;
+			//triggerX -= (int)scr.Frame.Width;
 			parentWindow.SetFrameTopLeftPoint (new CGPoint (scr.Frame.X + triggerX, scr.Frame.Y + (halfCocoaHeight + dy)));
 		}
 
 		public bool RepositionDeclarationViewWindow (TooltipInformationWindow declarationviewwindow, int selectedItem)
 		{
+			if (listView == null) {
+				return false;
+			}
+			var rect = listView.RectForRow (listView.SelectedRow);
+			var offset = ((NSClipView)listView.Superview).DocumentVisibleRect ().Y;
+			var y = rect.Y - offset;
+			if (y < 0 || y + rect.Height > View.Window.Frame.Height) {
+				return false;
+			}
+			declarationviewwindow.ShowPopup (View, new Rectangle(0, (int)y, (int)rect.Width, (int)rect.Height), PopupPosition.Left);
 			return true;
 		}
 
@@ -178,6 +204,11 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void ShowPreviewCompletionEntry ()
 		{
+		}
+
+		void OnSelectionChanged (object sender, EventArgs args)
+		{
+			eventSink.OnSelectedItemChanged ();
 		}
 	}
 }
