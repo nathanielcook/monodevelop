@@ -48,3 +48,6 @@
 [submodule "main/external/macdoc"]
 	path = main/external/macdoc
 	url = git://github.com/xamarin/macdoc
+[submodule "main/external/Xamarin.PropertyEditing"]
+	path = main/external/Xamarin.PropertyEditing
+	url = https://github.com/xamarin/Xamarin.PropertyEditing
