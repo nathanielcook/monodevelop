@@ -39,6 +39,7 @@ namespace MonoDevelop.Ide.CodeCompletion
 	internal class CompletionListWindowCocoa : NSViewController, ICompletionView
 	{
 		NSWindow parentWindow;
+		WindowTransparencyDecorator decorator;
 
 		ICompletionViewEventSink eventSink;
 
@@ -119,6 +120,7 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void Hide ()
 		{
+			decorator.Detach ();
 			parentWindow.OrderOut (this);
 		}
 
@@ -195,6 +197,7 @@ namespace MonoDevelop.Ide.CodeCompletion
 
 		public void Show ()
 		{
+			decorator = WindowTransparencyDecorator.Attach (parentWindow);
 			parentWindow.OrderFront (this);
 		}
 
