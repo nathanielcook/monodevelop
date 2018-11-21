@@ -29,10 +29,18 @@
 using AppKit;
 using Foundation;
 
-namespace MonoDevelop.DesignerSupport.Toolbox
+namespace MonoDevelop.DesignerSupport
 {
 	static class NativeViewHelper
 	{
+		public static NSStackView CreateVerticalStackView (int spacing = 10, bool translatesAutoresizingMaskIntoConstraints = false) => new NSStackView () {
+			Orientation = NSUserInterfaceLayoutOrientation.Vertical,
+			Alignment = NSLayoutAttribute.Leading,
+			Spacing = spacing,
+			Distribution = NSStackViewDistribution.Fill,
+			TranslatesAutoresizingMaskIntoConstraints = translatesAutoresizingMaskIntoConstraints
+		};
+
 		public static NSStackView CreateHorizontalStackView (int spacing = 10) => new NSStackView () {
 			Orientation = NSUserInterfaceLayoutOrientation.Horizontal,
 			Alignment = NSLayoutAttribute.CenterY,
